@@ -22,6 +22,13 @@ func Connect(uri string) error {
 	return nil
 }
 
+func Delete(table, key, value string) error {
+	_, err := _client.DeleteByQuery(table).
+		Query(elastic.NewTermQuery(key, value)).
+		Do(context.Background())
+	return err
+}
+
 func Search(obj interface{}, table, value string, keys ...string) {
 	sr, _ := _client.Search().
 		Index(table).
