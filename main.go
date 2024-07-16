@@ -22,7 +22,7 @@ func Connect(uri string) error {
 	return nil
 }
 
-func Delete(table, key, value string) error {
+func Delete(table, key string, value interface{}) error {
 	_, err := _client.DeleteByQuery(table).
 		Query(elastic.NewTermQuery(key, value)).
 		Do(context.Background())
