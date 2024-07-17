@@ -4,9 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"reflect"
 
 	"github.com/olivere/elastic/v7"
 )
+
+type GlTabler interface {
+	TableName() string
+}
 
 var _client *elastic.Client
 
@@ -26,11 +32,15 @@ func Delete(table string, id int) error {
 	return err
 }
 
-func Update(table string, id int, data interface{}) error {
-	_, err := _client.Update().
+func Update(data interface{}) error {
+	table, body, err := getObjValue(data)
+	if err != nil {
+		return err
+	}
+	_, err = _client.Update().
 		Index(table).
-		Id(string(id)).
-		Doc(data).
+		Id(fmt.Sprintf("%v", body["id"])).
+		Doc(body).
 		Refresh("true").
 		Do(context.Background())
 	if err != nil {
@@ -65,14 +75,50 @@ func term(value string, keys ...string) *elastic.BoolQuery {
 	return elastic.NewBoolQuery().MinimumShouldMatch("1").Should(queries...)
 }
 
-func Save(table string, id int, data interface{}) error {
+func Save(data interface{}) error {
 	if _client == nil {
 		return errors.New("Disconnected")
 	}
-	_, err := _client.Index().
+	table, body, err := getObjValue(data)
+	if err != nil {
+		return err
+	}
+	_, err = _client.Index().
 		Index(table).
-		Id(string(id)).
-		BodyJson(data).
+		Id(fmt.Sprintf("%v", body["id"])).
+		BodyJson(body).
 		Do(context.Background())
 	return err
+}
+
+func getObjValue(ptr interface{}) (string, map[string]interface{}, error) {
+
+	tabler, ok := ptr.(GlTabler)
+	if !ok {
+		return "", nil, errors.New("must pointer to golastic.GlTabler")
+	}
+
+	v := reflect.ValueOf(ptr)
+
+	res := map[string]interface{}{}
+
+	val := v.Elem()
+
+	if val.Kind() != reflect.Struct {
+		return "", nil, errors.New("invalid object")
+	}
+
+	typ := val.Type()
+	for i := 0; i < typ.NumField(); i++ {
+		tag := typ.Field(i).Tag.Get("gl")
+		if tag != "" && tag != "-" {
+			res[tag] = val.FieldByName(typ.Field(i).Name).Interface()
+		}
+	}
+
+	if res["id"] == nil || res["id"] == "" {
+		return "", nil, errors.New("column id not found")
+	}
+
+	return (tabler).TableName(), res, nil
 }
