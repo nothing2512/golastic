@@ -25,9 +25,10 @@ func Connect(uri string) error {
 	return nil
 }
 
-func Delete(table string, id int) error {
+func Delete(table string, id interface{}) error {
 	_, err := _client.Delete().
 		Index(table).
+		Id(fmt.Sprintf("%v", id)).
 		Do(context.Background())
 	return err
 }
